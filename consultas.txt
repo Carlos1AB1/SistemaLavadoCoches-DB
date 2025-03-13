@@ -1,0 +1,344 @@
+1. Listar todos los vehículos atendidos en una fecha específica
+
+SELECT v.placa, v.tipo, s.tipo AS tipo_lavado, e1.nombre AS recibido_por, e2.nombre AS lavado_por, os.fecha_recepcion
+FROM OrdenesServicio os
+JOIN Vehiculos v ON os.placa = v.placa
+JOIN Servicios s ON os.id_servicio = s.id_servicio
+JOIN Empleados e1 ON os.id_receptor = e1.id_empleado
+JOIN Empleados e2 ON os.id_lavador = e2.id_empleado
+WHERE DATE(os.fecha_recepcion) = '2025-03-10';
+
+2. Mostrar los servicios pendientes ordenados por hora de recepción
+
+SELECT os.id_orden, v.placa, s.tipo AS tipo_lavado, e1.nombre AS recibido_por, e2.nombre AS lavado_por, os.fecha_recepcion
+FROM OrdenesServicio os
+JOIN Vehiculos v ON os.placa = v.placa
+JOIN Servicios s ON os.id_servicio = s.id_servicio
+JOIN Empleados e1 ON os.id_receptor = e1.id_empleado
+JOIN Empleados e2 ON os.id_lavador = e2.id_empleado
+WHERE os.estado = 'Pendiente'
+ORDER BY os.fecha_recepcion ASC;
+
+3. Calcular la carga de trabajo por empleado en el día actual
+
+SELECT e.id_empleado, e.nombre, COUNT(os.id_orden) AS vehiculos_asignados
+FROM OrdenesServicio os
+JOIN Empleados e ON os.id_lavador = e.id_empleado
+WHERE DATE(os.fecha_recepcion) = CURDATE()
+GROUP BY e.id_empleado, e.nombre
+ORDER BY vehiculos_asignados DESC;
+
+4. Identificar los insumos con stock bajo
+
+SELECT id_insumo, nombre, stock
+FROM Insumos
+WHERE stock < 10;
+
+5. Listar los turnos de empleados para la semana actual
+
+SELECT e.nombre, t.dia_semana, t.hora_inicio, t.hora_fin
+FROM Turnos t
+JOIN Empleados e ON t.id_empleado = e.id_empleado
+WHERE WEEK(NOW()) = WEEK(CURDATE());
+
+6. Identificar los empleados disponibles en el turno actual
+
+SELECT e.id_empleado, e.nombre
+FROM Turnos t
+JOIN Empleados e ON t.id_empleado = e.id_empleado
+WHERE t.dia_semana = DAYNAME(CURDATE())
+AND CURTIME() BETWEEN t.hora_inicio AND t.hora_fin;
+
+7. Obtener el historial de servicios por placa
+
+SELECT os.id_orden, os.fecha_recepcion, os.fecha_entrega, s.tipo AS tipo_lavado, e1.nombre AS recibido_por, e2.nombre AS lavado_por
+FROM OrdenesServicio os
+JOIN Servicios s ON os.id_servicio = s.id_servicio
+JOIN Empleados e1 ON os.id_receptor = e1.id_empleado
+JOIN Empleados e2 ON os.id_lavador = e2.id_empleado
+WHERE os.placa = 'ABC123'
+ORDER BY os.fecha_recepcion DESC;
+
+8. Calcular el tiempo promedio de atención por tipo de lavado y vehículo
+
+SELECT v.tipo AS tipo_vehiculo, s.tipo AS tipo_lavado, AVG(TIMESTAMPDIFF(MINUTE, os.fecha_recepcion, os.fecha_entrega)) AS tiempo_promedio_minutos
+FROM OrdenesServicio os
+JOIN Vehiculos v ON os.placa = v.placa
+JOIN Servicios s ON os.id_servicio = s.id_servicio
+WHERE os.fecha_entrega IS NOT NULL
+GROUP BY v.tipo, s.tipo;
+
+9. Reporte de ingresos diarios en el último mes
+
+SELECT DATE(os.fecha_recepcion) AS fecha, SUM(s.precio) AS ingresos
+FROM OrdenesServicio os
+JOIN Servicios s ON os.id_servicio = s.id_servicio
+WHERE os.fecha_recepcion >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)
+GROUP BY fecha
+ORDER BY fecha DESC;
+
+10. Tipos de vehículos más frecuentes atendidos en los últimos 30 días
+
+SELECT v.tipo, COUNT(*) AS cantidad
+FROM OrdenesServicio os
+JOIN Vehiculos v ON os.placa = v.placa
+WHERE os.fecha_recepcion >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+GROUP BY v.tipo
+ORDER BY cantidad DESC;
+
+
+11. Calcular el consumo de insumos por tipo de servicio
+
+SELECT s.tipo AS tipo_servicio, i.nombre AS insumo, SUM(ci.cantidad) AS total_consumo
+FROM ConsumoInsumos ci
+JOIN Insumos i ON ci.id_insumo = i.id_insumo
+JOIN OrdenesServicio os ON ci.id_orden = os.id_orden
+JOIN Servicios s ON os.id_servicio = s.id_servicio
+GROUP BY s.tipo, i.nombre
+ORDER BY total_consumo DESC;
+
+12. Determinar los horarios de mayor demanda de servicios
+
+SELECT HOUR(os.fecha_recepcion) AS hora, COUNT(*) AS total_servicios
+FROM OrdenesServicio os
+WHERE os.fecha_recepcion >= DATE_SUB(CURDATE(), INTERVAL 1 WEEK)
+GROUP BY HOUR(os.fecha_recepcion)
+ORDER BY total_servicios DESC;
+
+13. Empleado más eficiente (menor tiempo promedio por tipo de lavado)
+
+SELECT e.id_empleado, e.nombre, s.tipo AS tipo_lavado, AVG(TIMESTAMPDIFF(MINUTE, os.fecha_recepcion, os.fecha_entrega)) AS tiempo_promedio
+FROM OrdenesServicio os
+JOIN Empleados e ON os.id_lavador = e.id_empleado
+JOIN Servicios s ON os.id_servicio = s.id_servicio
+WHERE os.fecha_entrega IS NOT NULL
+GROUP BY e.id_empleado, e.nombre, s.tipo
+ORDER BY tiempo_promedio ASC
+LIMIT 1;
+
+14. Reporte de rentabilidad por tipo de servicio
+
+SELECT s.tipo AS tipo_servicio, SUM(s.precio) AS ingresos, SUM(i.precio * ci.cantidad) AS costo_insumos, (SUM(s.precio) - SUM(i.precio * ci.cantidad)) AS rentabilidad
+FROM OrdenesServicio os
+JOIN Servicios s ON os.id_servicio = s.id_servicio
+JOIN ConsumoInsumos ci ON os.id_orden = ci.id_orden
+JOIN Insumos i ON ci.id_insumo = i.id_insumo
+GROUP BY s.tipo
+ORDER BY rentabilidad DESC;
+
+15. Vehículos de clientes frecuentes (más de 3 visitas en los últimos 2 meses)
+
+SELECT v.placa, c.nombre, COUNT(os.id_orden) AS total_visitas
+FROM OrdenesServicio os
+JOIN Vehiculos v ON os.placa = v.placa
+JOIN Clientes c ON v.id_cliente = c.id_cliente
+WHERE os.fecha_recepcion >= DATE_SUB(CURDATE(), INTERVAL 2 MONTH)
+GROUP BY v.placa, c.nombre
+HAVING total_visitas > 3
+ORDER BY total_visitas DESC;
+
+16. Valor total del inventario de insumos
+
+SELECT SUM(stock * precio) AS valor_total_inventario
+FROM Insumos;
+
+17. Distribución porcentual de tipos de lavado
+
+SELECT s.tipo AS tipo_lavado, COUNT(*) AS total, ROUND(COUNT(*) * 100 / (SELECT COUNT(*) FROM OrdenesServicio), 2) AS porcentaje
+FROM OrdenesServicio os
+JOIN Servicios s ON os.id_servicio = s.id_servicio
+GROUP BY s.tipo
+ORDER BY porcentaje DESC;
+
+18. Días con mayor volumen de servicios en los últimos 3 meses
+
+SELECT DATE(os.fecha_recepcion) AS fecha, COUNT(*) AS total_servicios
+FROM OrdenesServicio os
+WHERE os.fecha_recepcion >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH)
+GROUP BY fecha
+ORDER BY total_servicios DESC
+LIMIT 5;
+
+19. Reporte de empleados con días de descanso en el mes actual
+
+SELECT e.nombre, t.dia_semana
+FROM Turnos t
+JOIN Empleados e ON t.id_empleado = e.id_empleado
+WHERE t.dia_semana NOT IN (SELECT DISTINCT DAYNAME(os.fecha_recepcion) FROM OrdenesServicio os WHERE MONTH(os.fecha_recepcion) = MONTH(CURDATE()))
+GROUP BY e.nombre, t.dia_semana;
+
+20. Proyección de insumos necesarios para el próximo mes
+
+SELECT i.nombre AS insumo, ROUND(AVG(ci.cantidad) * 30, 2) AS proyeccion_mes
+FROM ConsumoInsumos ci
+JOIN Insumos i ON ci.id_insumo = i.id_insumo
+JOIN OrdenesServicio os ON ci.id_orden = os.id_orden
+WHERE os.fecha_recepcion >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+GROUP BY i.nombre
+ORDER BY proyeccion_mes DESC;
+
+21. Tipos de lavado con mayor ingreso mensual
+
+SELECT s.tipo AS tipo_lavado, SUM(s.precio) AS ingresos_totales
+FROM OrdenesServicio os
+JOIN Servicios s ON os.id_servicio = s.id_servicio
+WHERE os.fecha_recepcion >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)
+GROUP BY s.tipo
+ORDER BY ingresos_totales DESC;
+
+22. Tiempo promedio que cada empleado tarda en completar lavados
+
+SELECT e.nombre, s.tipo AS tipo_lavado, AVG(TIMESTAMPDIFF(MINUTE, os.fecha_recepcion, os.fecha_entrega)) AS tiempo_promedio_minutos
+FROM OrdenesServicio os
+JOIN Empleados e ON os.id_lavador = e.id_empleado
+JOIN Servicios s ON os.id_servicio = s.id_servicio
+WHERE os.fecha_entrega IS NOT NULL
+GROUP BY e.nombre, s.tipo;
+
+23. Vehículos que han regresado para un segundo servicio en 7 días
+
+SELECT v.placa, c.nombre, COUNT(os.id_orden) AS veces_atendido
+FROM OrdenesServicio os
+JOIN Vehiculos v ON os.placa = v.placa
+JOIN Clientes c ON v.id_cliente = c.id_cliente
+WHERE os.fecha_recepcion >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+GROUP BY v.placa, c.nombre
+HAVING veces_atendido > 1;
+
+24. Costo total de insumos utilizados en el último trimestre
+
+SELECT s.tipo AS tipo_servicio, SUM(i.precio * ci.cantidad) AS costo_total_insumos
+FROM ConsumoInsumos ci
+JOIN Insumos i ON ci.id_insumo = i.id_insumo
+JOIN OrdenesServicio os ON ci.id_orden = os.id_orden
+JOIN Servicios s ON os.id_servicio = s.id_servicio
+WHERE os.fecha_recepcion >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH)
+GROUP BY s.tipo;
+
+25. Insumos con mayor rotación en los últimos 30 días
+
+SELECT i.nombre AS insumo, SUM(ci.cantidad) AS total_consumido
+FROM ConsumoInsumos ci
+JOIN Insumos i ON ci.id_insumo = i.id_insumo
+JOIN OrdenesServicio os ON ci.id_orden = os.id_orden
+WHERE os.fecha_recepcion >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+GROUP BY i.nombre
+ORDER BY total_consumido DESC;
+
+26. Patrones de demanda por día de la semana
+
+SELECT DAYNAME(os.fecha_recepcion) AS dia, COUNT(*) AS total_servicios
+FROM OrdenesServicio os
+GROUP BY dia
+ORDER BY total_servicios DESC;
+
+27. Tiempo promedio que un vehículo permanece en las instalaciones
+
+SELECT AVG(TIMESTAMPDIFF(MINUTE, os.fecha_recepcion, os.fecha_entrega)) AS tiempo_promedio_minutos
+FROM OrdenesServicio os
+WHERE os.fecha_entrega IS NOT NULL;
+
+28. Servicios cancelados o reprogramados con motivo
+
+SELECT os.id_orden, v.placa, s.tipo AS servicio, os.estado, os.motivo_cancelacion
+FROM OrdenesServicio os
+JOIN Vehiculos v ON os.placa = v.placa
+JOIN Servicios s ON os.id_servicio = s.id_servicio
+WHERE os.estado = 'Cancelado' OR os.motivo_cancelacion IS NOT NULL;
+
+29. Tasa de retención de clientes comparando con el mes anterior
+
+SELECT 
+    (COUNT(DISTINCT CASE WHEN os.fecha_recepcion >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) THEN os.placa END) * 100.0 / 
+    COUNT(DISTINCT CASE WHEN os.fecha_recepcion >= DATE_SUB(CURDATE(), INTERVAL 2 MONTH) AND os.fecha_recepcion < DATE_SUB(CURDATE(), INTERVAL 1 MONTH) THEN os.placa END)) 
+    AS tasa_retencion
+FROM OrdenesServicio os;
+
+30. Tipos de vehículos que requieren más insumos
+
+SELECT v.tipo AS tipo_vehiculo, i.nombre AS insumo, SUM(ci.cantidad) AS total_consumo
+FROM ConsumoInsumos ci
+JOIN Insumos i ON ci.id_insumo = i.id_insumo
+JOIN OrdenesServicio os ON ci.id_orden = os.id_orden
+JOIN Vehiculos v ON os.placa = v.placa
+GROUP BY v.tipo, i.nombre
+ORDER BY total_consumo DESC;
+
+31. Productividad de empleados en servicios por hora de trabajo
+
+SELECT e.nombre, COUNT(os.id_orden) / SUM(TIMESTAMPDIFF(HOUR, t.hora_inicio, t.hora_fin)) AS productividad
+FROM Empleados e
+JOIN Turnos t ON e.id_empleado = t.id_empleado
+JOIN OrdenesServicio os ON e.id_empleado = os.id_lavador
+WHERE DATE(os.fecha_recepcion) = CURDATE()
+GROUP BY e.nombre;
+
+32. Ingresos por franja horaria
+
+SELECT HOUR(os.fecha_recepcion) AS hora, SUM(s.precio) AS ingresos
+FROM OrdenesServicio os
+JOIN Servicios s ON os.id_servicio = s.id_servicio
+WHERE os.fecha_recepcion >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)
+GROUP BY hora
+ORDER BY ingresos DESC;
+
+33. Empleados con más quejas en los últimos 2 meses
+
+SELECT e.nombre, COUNT(*) AS total_quejas
+FROM ComentariosEmpleados ce
+JOIN Empleados e ON ce.id_empleado = e.id_empleado
+WHERE ce.tipo = 'Negativo' AND ce.fecha >= DATE_SUB(CURDATE(), INTERVAL 2 MONTH)
+GROUP BY e.nombre
+ORDER BY total_quejas DESC;
+
+34. Estimación de desperdicio de insumos
+
+SELECT i.nombre, SUM(ci.cantidad) AS consumo_real, SUM(ci.cantidad) * 1.1 AS consumo_teorico, (SUM(ci.cantidad) * 1.1 - SUM(ci.cantidad)) AS desperdicio_estimado
+FROM ConsumoInsumos ci
+JOIN Insumos i ON ci.id_insumo = i.id_insumo
+GROUP BY i.nombre;
+
+35. Servicios complementarios más solicitados junto con lavados básicos
+
+SELECT s.tipo AS servicio_basico, s2.tipo AS servicio_complementario, COUNT(*) AS total_solicitudes
+FROM OrdenesServicio os
+JOIN Servicios s ON os.id_servicio = s.id_servicio
+JOIN OrdenesServicio os2 ON os.placa = os2.placa AND os.id_orden <> os2.id_orden
+JOIN Servicios s2 ON os2.id_servicio = s2.id_servicio
+WHERE s.tipo LIKE '%Básico%'
+GROUP BY s.tipo, s2.tipo
+ORDER BY total_solicitudes DESC;
+
+36. Historial de cambios de precios de servicios
+
+SELECT s.tipo, h.precio, h.fecha_cambio
+FROM HistorialPrecios h
+JOIN Servicios s ON h.id_servicio = s.id_servicio
+ORDER BY h.fecha_cambio DESC;
+
+37. Vida útil promedio de equipos
+
+SELECT equipo, AVG(DATEDIFF(NOW(), fecha)) AS vida_util_promedio_dias
+FROM MantenimientoEquipos
+GROUP BY equipo;
+
+38. Distribución geográfica de clientes
+
+SELECT zona, COUNT(*) AS total_clientes
+FROM Clientes
+GROUP BY zona
+ORDER BY total_clientes DESC;
+
+39. Tendencias estacionales en demanda de servicios
+
+SELECT MONTH(os.fecha_recepcion) AS mes, COUNT(*) AS total_servicios
+FROM OrdenesServicio os
+GROUP BY mes
+ORDER BY total_servicios DESC;
+
+40. Proveedores con mejor puntualidad
+
+SELECT nombre, AVG(puntualidad) AS puntualidad_promedio
+FROM Proveedores
+GROUP BY nombre
+ORDER BY puntualidad_promedio DESC;
